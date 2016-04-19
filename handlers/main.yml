@@ -33,3 +33,12 @@
 
 - name: Bring bridge up
   command: "ifup {{ lxc_net_bridge }}"
+
+- name: Destroy base container
+  lxc_container:
+    name: "cache-{{ lxc_cache_map.distro }}"
+    state: absent
+  register: cache_destroy
+  retries: 3
+  delay: 10
+  until: cache_destroy|success

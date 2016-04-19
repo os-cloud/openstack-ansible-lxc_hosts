@@ -38,7 +38,7 @@
   until: install_packages|success
   retries: 5
   delay: 2
-  with_items: lxc_apt_packages
+  with_items: lxc_packages
   tags:
     - lxc-apt-packages
 
@@ -54,3 +54,30 @@
     backup: yes
   tags:
     - lxc-cache-path
+
+- name: Drop irqbalance config
+  template:
+    src: "irqbalance.j2"
+    dest: "/etc/default/irqbalance"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - Restart irqbalance
+  tags:
+    - lxc-files
+    - lxc-irqbalance
+
+- name: Drop lxc-openstack app armor profile
+  template:
+    src: "lxc-openstack.apparmor.j2"
+    dest: "/etc/apparmor.d/lxc/lxc-openstack"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  notify:
+    - Load lxc-openstack apparmor profile
+    - Restart apparmor
+  tags:
+    - lxc-files
+    - lxc-apparmor

@@ -13,11 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+- name: Drop lxc net bridge RedHat
+  template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: "{{ item.owner|default('root') }}"
+    group: "{{ item.group|default('root') }}"
+    mode: "{{ item.mode|default('0644') }}"
+  with_items:
+    - { src: lxc-net-ifcfg-bridge.cfg.j2, dest: "/etc/sysconfig/network-scripts/ifcfg-lxcbr0" }
+  when: ansible_os_family == "RedHat"
+  notify:
+    - Bring bridge up
+  tags:
+    - lxc-files
+    - lxc-net
+    - lxc-bridge
+    - lxc-interfaces
+
 - name: Ensure networking includes interfaces.d
   lineinfile:
     dest: "/etc/network/interfaces"
     line: "source /etc/network/interfaces.d/*.cfg"
     backup: "yes"
+  when: ansible_os_family == "Debian"
   tags:
     - lxc-net
     - lxc-interfaces
@@ -29,6 +48,7 @@
     owner: "root"
     group: "root"
     mode: "0644"
+  when: ansible_os_family == "Debian"
   tags:
     - lxc-files
     - lxc-net
@@ -41,6 +61,7 @@
   register: bridge_check
   failed_when: false
   changed_when: bridge_check.state == 'absent'
+  when: ansible_os_family == "Debian"
   notify:
     - Bring bridge up
   tags:
