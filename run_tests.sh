@@ -22,6 +22,10 @@ if [ "$(which apt-get)" ]; then
   apt-get install -y build-essential python2.7 python-dev git-core
 fi
 
+if [ "$(which yum)" ]; then
+  yum install -y '@Development Tools' python-devel git
+fi
+
 # get pip, if necessary
 if [ ! "$(which pip)" ]; then
   curl --silent --show-error --retry 5 \
@@ -33,9 +37,9 @@ pip install tox
 
 # run through each tox env and execute the test
 for tox_env in $(awk -F= '/envlist/ {print $2}' tox.ini | sed 's/,/ /g'); do
-  if [ "${tox_env}" != "ansible-functional" ]; then
+  if [ "${tox_env}" != "functional" ]; then
     tox -e ${tox_env}
-  elif [ "${tox_env}" == "ansible-functional" ]; then
+  elif [ "${tox_env}" == "functional" ]; then
     if ${FUNCTIONAL_TEST}; then
       tox -e ${tox_env}
     fi
