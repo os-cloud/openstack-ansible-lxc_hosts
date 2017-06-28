@@ -1,0 +1,17 @@
+[Match]
+Name=eth0
+
+[DHCP]
+UseDNS=true
+UseNTP=true
+UseRoutes=true
+UseTimezone=true
+UseDomains=true
+UseHostname=false
+RouteMetric=20
+
+[Network]
+DHCP=yes
+
+[Link]
+MTUBytes={{ lxc_net_mtu }}

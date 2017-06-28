@@ -33,14 +33,14 @@
     state: "restarted"
     enabled: "yes"
 
-- name: Restart bridge
-  shell: "ifdown {{ lxc_net_bridge }} || true"
-  notify:
-    - Bring bridge up
-    - Veth check
-
 - name: Bring bridge up
-  command: "ifup {{ lxc_net_bridge }}"
+  systemd:
+    name: "systemd-networkd"
+    state: "restarted"
+    enabled: yes
+    daemon_reload: yes
+  notify:
+    - Veth check
 
 - name: Veth check
   command: "/usr/local/bin/lxc-veth-check"

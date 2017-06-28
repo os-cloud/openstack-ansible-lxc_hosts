@@ -74,7 +74,7 @@
 - name: Rsyncing files from the LXC host to the container cache
   shell: |
     if [[ -e "{{ item }}" ]]; then
-      rsync -av "{{ item }}" "{{ lxc_image_cache_path }}{{ item }}"
+      rsync -avL "{{ item }}" "{{ lxc_image_cache_path }}{{ item }}"
     fi
   args:
     executable: "/bin/bash"
@@ -87,6 +87,11 @@
     dest: "{{ lxc_image_cache_path }}{{ item.dest | default(item.src) | dirname }}"
     state: directory
   with_items: "{{ lxc_container_cache_files }}"
+
+- name: Create network config directory
+  file:
+    path: "{{ lxc_image_cache_path }}/etc/systemd/network"
+    state: directory
 
 - name: Copy files from deployment host to the container cache
   copy:
@@ -130,6 +135,14 @@
     dest: "{{ lxc_image_cache_path }}/root/.ssh/authorized_keys"
     line: "{{ lxc_container_ssh_key }}"
     create: true
+
+- name: Drop the basic network config
+  template:
+    src: networkd/container-eth0.network
+    dest: "{{ lxc_image_cache_path }}/etc/systemd/network/container-eth0.network"
+    owner: root
+    group: root
+    mode: '0644'
 
 - name: Remove generated apt keys from LXC host
   file:

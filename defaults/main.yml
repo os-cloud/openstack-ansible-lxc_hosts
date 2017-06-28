@@ -56,41 +56,55 @@ lxc_container_base_name: "{{ lxc_cache_map.distro }}-{{ lxc_cache_map.release }}
 
 # lxc container net network
 lxc_net_bridge: lxcbr0
-lxc_net_bridge_port: none
 lxc_net_address: 10.0.3.1
 lxc_net_netmask: 255.255.255.0
-lxc_net_gateway: null  ## if null, no gateway will be on the LXC bridge. lxc_net_nat must be "false" to use a gateway.
-#lxc_net_mtu: 1500 ##setting this variable will add mtu configuration for the lxc config and network bridge
+lxc_net_gateway: null  ## if null, no gateway will be on the LXC bridge.
 
-# lxc container nat enabled
-lxc_net_nat: true  ## If "true", nat rules will be created with the lxc network.
-
-# Enable iptables for lxc network
-lxc_net_manage_iptables: true  ## If "true" iptables rules will be added when the bridge is up and deleted when bridge is down
+## The MTU option is used both in and outside of the container.
+lxc_net_mtu: 1500
 
 # lxc container dhcp settings
-lxc_net_dhcp_range: 10.0.3.2,10.0.3.253
-lxc_net_dhcp_max: 253
-lxc_net_dhcp_config: ''
-lxc_net_dnsmasq_user: lxc-dnsmasq
-lxc_net_domain: ''
+lxc_net_dhcp_max: 100
 
 # lxc network ipv6 settings
 lxc_net6_address: null ## ie. fd05:ffb8:32b4:1212::1
 lxc_net6_netmask: null ## ie. 64
-lxc_net6_nat: false
 
 # lxc_container_net_link variable should be set to the lxc-net bridge.
 lxc_container_net_link: "{{ lxc_net_bridge }}"  ## name of the host bridge to attach to
 lxc_container_net_type: veth  ## lxc network interface type (veth, phys, vlan, macvlan, empty)
 lxc_container_net_name: eth0  ## name of the interface inside the container.
 
+# lxcbr0 network interface overrides
+## Physical host link configurations
+#   See all available overrides here https://www.freedesktop.org/software/systemd/man/systemd.link.html
+lxc_network_default_link: {}
+## Physical host interface configurations (defaults to a dummy device)
+#   See all available overrides here https://www.freedesktop.org/software/systemd/man/systemd.netdev.html
+lxc_network_dummy_netdev: {}
+#   See all available overrides here https://www.freedesktop.org/software/systemd/man/systemd.network.html
+lxc_network_dummy_network: {}
+## LXC bridge configurations
+#   See all available overrides here https://www.freedesktop.org/software/systemd/man/systemd.netdev.html
+lxc_network_lxcbr_netdev: {}
+#   See all available overrides here https://www.freedesktop.org/software/systemd/man/systemd.network.html
+lxc_network_lxcbr_network: {}
+
+# NOTE(cloudnull): After installing firewalld the default zone is too restricted on
+#                  LXC hosts especially when hyper-converging the cloud services.
+#                  this changes the zone to a compatible option that would have been
+#                  in service prior to running firewalld.
+# OPTIONS: block, dmz, drop, external, home, internal, public, trusted, work
+lxc_firewalld_default_zone: trusted
+
 # System control kernel tuning
 lxc_kernel_options:
   - { key: 'fs.inotify.max_user_instances', value: 1024 }
+  - { key: 'net.ipv4.conf.{{ lxc_net_bridge }}.forwarding', value: 1 }
 
 lxc_pip_packages:
   - lxc-python2
+  - netaddr
 
 lxc_cache_sshd_configuration:
     - { regexp: "^PermitRootLogin",         line: "PermitRootLogin yes" }

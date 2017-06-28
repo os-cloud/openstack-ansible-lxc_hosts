@@ -13,51 +13,50 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-- name: Drop lxc net bridge
-  template:
-    src: "{{ item.src }}"
-    dest: "{{ item.dest }}"
-    owner: "root"
-    group: "root"
-    mode: "0644"
+# NOTE(cloudnull): This is here for upgrade, remove in the R release.
+#                  This task is set to never fail. This is being done so we
+#                  can support greenfield deployment where dnsmasq may have
+#                  never existed.
+- name: Ensure dnsmasq stopped
+  systemd:
+    name: "dnsmasq"
+    state: "stopped"
+    enabled: "no"
+  failed_when: false
+
+# NOTE(cloudnull): This is here for upgrade, remove in the R release.
+- name: Remove dnsmasq file(s)
+  file:
+    path: "{{ item }}"
+    state: "absent"
+  with_items:
+    - /var/run/dnsmasq/resolv.conf
+    - /etc/dnsmasq.conf
+
+- name: Remove dnsmasq file(s)
+  file:
+    path: "{{ item }}"
+    state: "absent"
+  with_items:
+    - /var/run/dnsmasq/resolv.conf
+    - /etc/dnsmasq.conf
+
+# NOTE(cloudnull): This task is cleaning up old interface config files.
+#                  This is here for upgrade, remove in the R release
+- name: Remove interface file(s)
+  file:
+    path: "{{ item }}"
+    state: "absent"
   with_items: "{{ lxc_cached_network_interfaces }}"
-  notify:
-    - Bring bridge up
-  tags:
-    - lxc-files
-    - lxc-net
-    - lxc-bridge
-    - lxc-interfaces
 
-- name: Drop lxc net bridge routes (SUSE)
-  template:
-    src: "lxc-net-suse-routes.cfg.j2"
-    dest: "/etc/sysconfig/network/ifroute-{{ lxc_net_bridge }}"
-    owner: "root"
-    group: "root"
-    mode: "0644"
-  when:
-    - lxc_net_gateway is not none
-    - ansible_pkg_mgr == "zypper"
-  notify:
-    - Bring bridge up
-  tags:
-    - lxc-files
-    - lxc-net
-    - lxc-bridge
-    - lxc-interfaces
-
-# All Debian installations of LXC use the lxc-net service. This service breaks our network
-#  model and needs to be disabled
+# NOTE(cloudnull): The use of the lxc-net service should be universally disabled.
 - name: Disable and stop lxc-net
-  service:
+  systemd:
     name: lxc-net
     enabled: no
     state: stopped
   when:
-    - ansible_os_family == "Debian"
-  tags:
-    - lxc-net
+    - ansible_os_family | lower in ['redhat', 'debian']
 
 - name: Mask lxc-net systemd service
   file:
@@ -67,49 +66,26 @@
   when:
     - ansible_service_mgr == 'systemd'
     - ansible_os_family == "Debian"
-  tags:
-    - lxc-files
-    - lxc-net
 
-# CentOS systems need the lxc-net service for LXC containers to boot with a
-# network interface.
-- name: Enable the lxc-net service upon reboot (CentOS)
-  service:
-    name: lxc-net
-    enabled: yes
-  when:
-    - ansible_os_family == 'RedHat'
-  tags:
-    - lxc-net
+- name: Create systemd-networkd directory
+  file:
+    path: "/etc/systemd/network"
+    state: "directory"
+    owner: "root"
+    group: "root"
 
-# All Debian based systems use the interfaces.d directory for extra network configs
-#  this check ensures the needed source line is in the base config file
-- name: Ensure networking includes interfaces.d
-  lineinfile:
-    dest: "/etc/network/interfaces"
-    line: "source /etc/network/interfaces.d/*.cfg"
-    backup: "yes"
-  when:
-    - ansible_os_family == "Debian"
-  tags:
-    - lxc-net
-    - lxc-interfaces
-
-- name: Drop lxc net bridge - Debian
-  template:
-    src: "lxc-net-bridge.cfg.j2"
-    dest: "/etc/network/interfaces.d/lxc-net-bridge.cfg"
+- name: Drop lxc container networkd interfaces
+  config_template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
     owner: "root"
     group: "root"
     mode: "0644"
-  when:
-    - ansible_os_family == "Debian"
+    config_overrides: "{{ item.config_overrides }}"
+    config_type: "{{ item.config_type }}"
+  with_items: "{{ lxc_network_interfaces }}"
   notify:
-    - Restart bridge
-  tags:
-    - lxc-files
-    - lxc-net
-    - lxc-bridge
+    - Bring bridge up
 
 # Check that the container bridge exists, if not bring it up
 - name: Check Container Bridge exists
@@ -121,8 +97,25 @@
   changed_when: bridge_check.state == 'absent'
   notify:
     - Bring bridge up
+
+- name: Enable firewalld
+  systemd:
+    name: "firewalld"
+    state: "started"
+    enabled: yes
+    daemon_reload: yes
+
+- name: Drop lxc firewall rules script
+  template:
+    src: "lxc-firewall-rules.sh.j2"
+    dest: "/usr/local/bin/lxc-firewall-rules.sh"
+    mode: "0755"
+
+- name: Run lxc firewall rules script
+  command: "/usr/local/bin/lxc-firewall-rules.sh"
+  become: yes
   tags:
-    - lxc-bridge
+    - skip_ansible_lint
 
 # Ensure lxc networks are running as they're supposed to
 - meta: flush_handlers

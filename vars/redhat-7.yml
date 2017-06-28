@@ -22,7 +22,7 @@ lxc_hosts_distro_packages:
   - btrfs-progs
   - dbus
   - debootstrap
-  - dnsmasq
+  - firewalld
   - git
   - libseccomp
   - libselinux
@@ -33,6 +33,7 @@ lxc_hosts_distro_packages:
   - lxc-templates
   - policycoreutils-python
   - selinux-policy-devel
+  - systemd-networkd
   - xz
 
 lxc_xz_bin: xz
@@ -47,15 +48,10 @@ lxc_cache_map:
     - /etc/pki/rpm-gpg/
     - /etc/environment
     - /etc/localtime
+    - /etc/resolv.conf
   cache_prep_commands: |
     {{ lxc_cache_prep_pre_commands }}
     mkdir -p /etc/ansible/facts.d/
-    if [ -a /etc/resolv.conf ]; then
-      mv /etc/resolv.conf /etc/resolv.conf.org
-    fi
-    {% for resolver in lxc_cache_prep_dns %}
-    echo "nameserver {{ resolver }}" >> /etc/resolv.conf
-    {% endfor %}
     rpm --import /etc/pki/rpm-gpg/*
     # Update base distribution
     yum update -y
@@ -64,13 +60,11 @@ lxc_cache_map:
     ln -s /usr/bin/python2.7 /usr/bin/python
     yum clean all
     mkdir -p /var/backup
-    echo -e '{{ lxc_container_default_interfaces }}' | tee /etc/sysconfig/network-scripts/ifcfg-eth0
+    systemctl enable sshd
+    systemctl enable systemd-networkd
+    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    systemctl enable systemd-resolved.service
     chage -I -1 -d -1 -m 0 -M 99999 -E -1 root
-    if [ -a /etc/resolv.conf.org ]; then
-      mv /etc/resolv.conf.org /etc/resolv.conf
-    else
-      rm -f /etc/resolv.conf
-    fi
     {{ lxc_cache_prep_post_commands }}
 
 lxc_cache_distro_packages:
@@ -83,19 +77,13 @@ lxc_cache_distro_packages:
   - python2
   - rsync
   - sudo
-  - wget
+  - systemd-networkd
   - tar
+  - wget
   - which
   - yum-plugin-priorities
   - yum-utils
 
+# NOTE(cloudnull): This is being kept to cleanup old interface config files, Remote this is R.
 lxc_cached_network_interfaces:
-  - src: "lxc-net-redhat-bridge.cfg.j2"
-    dest: "/etc/sysconfig/network-scripts/ifcfg-{{ lxc_net_bridge }}"
-
-lxc_container_default_interfaces: |
-  DEVICE=eth0
-  BOOTPROTO=dhcp
-  ONBOOT=yes
-  NM_CONTROLLED=no
-  TYPE=Ethernet
+  - dest: "/etc/sysconfig/network-scripts/ifcfg-{{ lxc_net_bridge }}"

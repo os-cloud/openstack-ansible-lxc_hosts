@@ -23,7 +23,7 @@ lxc_hosts_distro_packages:
   - apparmor-profiles
   - apparmor-utils
   - bridge-utils
-  - dnsmasq
+  - firewalld
   - git-core
   - libseccomp2
   - lxc
@@ -43,32 +43,24 @@ lxc_cache_map:
   copy_from_host:
     - /etc/environment
     - /etc/localtime
+    - /etc/resolv.conf
   cache_prep_commands: |
     {{ lxc_cache_prep_pre_commands }}
     mkdir -p /etc/ansible/facts.d/
-    if [ -a /etc/resolv.conf ]; then
-      mv /etc/resolv.conf /etc/resolv.conf.org
-    fi
-    {% for resolver in lxc_cache_prep_dns %}
-    echo "nameserver {{ resolver }}" >> /etc/resolv.conf
-    {% endfor %}
     # Do a complete refresh and fetch the keys without asking
     zypper --gpg-auto-import-keys -n ref -f
     # Update base distribution
     zypper -n dup -l
     zypper -n in -l {{ lxc_cache_distro_packages | join(' ') }}
     mkdir -p /var/backup
-    echo -e '{{ lxc_container_default_interfaces }}' | tee /etc/sysconfig/network/ifcfg-eth0
     chage -I -1 -d -1 -m 0 -M 99999 -E -1 root
-    if [ -a /etc/resolv.conf.org ]; then
-      mv /etc/resolv.conf.org /etc/resolv.conf
-    else
-      rm -f /etc/resolv.conf
-    fi
     # NOTE(hwoarang): Enable sshd which has been explicitely disabled in
     # https://github.com/lxc/lxc-ci/commit/8dc7105399350a59698538a12b6d5a1a880ef2ba
     systemctl -q unmask sshd
     systemctl -q enable sshd
+    systemctl enable systemd-networkd
+    ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+    systemctl enable systemd-resolved.service
     {{ lxc_cache_prep_post_commands }}
 
 lxc_cache_distro_packages:
@@ -84,10 +76,6 @@ lxc_cache_distro_packages:
   - tar
   - which
 
+# NOTE(cloudnull): This is being kept to cleanup old interface config files, Remote this is R.
 lxc_cached_network_interfaces:
-  - src: "lxc-net-suse-bridge.cfg.j2"
-    dest: "/etc/sysconfig/network/ifcfg-{{ lxc_net_bridge }}"
-
-lxc_container_default_interfaces: |
-  STARTMODE=auto
-  BOOTPROTO=dhcp
+  - dest: "/etc/sysconfig/network/ifcfg-{{ lxc_net_bridge }}"

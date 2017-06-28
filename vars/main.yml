@@ -1,0 +1,29 @@
+---
+# Copyright 2017, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# The container network interface is managed by systemd-networkd
+lxc_network_interfaces:
+  - src: "networkd/99-default.link"
+    dest: "/etc/systemd/network/99-default.link"
+    config_overrides: "{{ lxc_network_default_link }}"
+    config_type: ini
+  - src: "networkd/lxcbr0.netdev"
+    dest: "/etc/systemd/network/lxcbr0.netdev"
+    config_overrides: "{{ lxc_network_lxcbr_netdev }}"
+    config_type: ini
+  - src: "networkd/lxcbr0.network"
+    dest: "/etc/systemd/network/lxcbr0.network"
+    config_overrides: "{{ lxc_network_lxcbr_network }}"
+    config_type: ini

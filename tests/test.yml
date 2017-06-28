@@ -47,6 +47,27 @@
         - src: files/container-file-copy-test.txt
           dest: /tmp/file-copied-from-deployment-host.txt
   post_tasks:
+    - name: Create test container and exercise it
+      shell: |
+        EXIT=0
+        # Create and start the container
+        lxc-create --name test-container \
+                   --template download -- \
+                   --dist {{ lxc_cache_map.distro }} \
+                   --release {{ lxc_cache_map.release }} \
+                   --arch {{ lxc_cache_map.arch }} \
+                   --force-cache \
+                   --server images.linuxcontainers.org \
+                   --variant=default
+        # Start the test container
+        lxc-start -dn test-container
+        # Sleep 5 seconds so the container has time to pull a DHCP address
+        sleep 5
+        # Attach to the container and ping externally
+        lxc-attach -n test-container -- ping git.openstack.org -c 3 || (EXIT=99; cat /etc/resolv.conf; ip a l; ip r g 1; networkctl list; networkctl status)
+        # Run cleanup
+        lxc-destroy -fn test-container
+        exit ${EXIT}
     - name: Get sysctl content
       shell: |
         cat /etc/sysctl.conf
@@ -55,45 +76,21 @@
       stat:
         path: /sys/class/net/lxcbr0/bridge/bridge_id
       register: lxc_bridge_file
-    - name: Check dnsmasq is running
-      shell: ps auxfww | grep -w 'dnsmasq -u lxc-dnsmasq'
-    - name: DEBIAN - Get deployed interface file contents, without Ansible managed line
-      shell: |
-        cat /etc/network/interfaces.d/lxc-net-bridge.cfg | tail -n +3
-      register: _debian_interface_file
-      when: ansible_os_family | lower == "debian"
-    - name: DEBIAN - interface file fact
-      set_fact:
-        interface_file: "{{ _debian_interface_file.stdout }}"
-      when: ansible_os_family | lower == "debian"
-    - name: RHEL - Get deployed interface file contents, without Ansible managed line
-      shell: |
-        cat /etc/sysconfig/network-scripts/ifcfg-lxcbr0 | tail -n +3
-      register: _rhel_interface_file
-      when: ansible_os_family | lower == "redhat"
-    - name: RHEL - interface file fact
-      set_fact:
-        interface_file: "{{ _rhel_interface_file.stdout }}"
-      when: ansible_os_family | lower == "redhat"
-    - name: SUSE - Get deployed interface file contents, without Ansible managed line
-      shell: |
-        cat /etc/sysconfig/network/ifcfg-lxcbr0 | tail -n +3
-      register: _suse_interface_file
-      when: ansible_os_family | lower == "suse"
-    - name: SUSE - interface file fact
-      set_fact:
-        interface_file: "{{ _suse_interface_file.stdout }}"
-      when: ansible_os_family | lower == "suse"
     - name: Get bridge interface facts
       setup:
         filter: ansible_lxcbr0
       register: lxcbr0_facts
+    - name: get network status
+      command: "networkctl status"
+      register: _network_status
+    - name: Set network status fact
+      set_fact:
+        network_status: "{{ _network_status.stdout }}"
     - name: Check role functions
       assert:
         that:
-          - interface_file | search('.*lxcbr0.*')
-          - interface_file | search('.*10.100.100.1.*')
-          - interface_file | search('.*255.255.255.0.*')
+          - network_status | search('.*lxcbr0.*')
+          - network_status | search('.*10.100.100.1.*')
           - sysctl_content.stdout | search('fs.inotify.max_user_instances.*')
           - "lxc_bridge_file.stat.exists"
           - "lxcbr0_facts.ansible_facts.ansible_lxcbr0.ipv4.address | match('10.100.100.1')"

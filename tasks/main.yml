@@ -54,15 +54,11 @@
   tags:
     - lxc_hosts-config
 
-- include: lxc_kernel_tuning.yml
-  tags:
-    - lxc_hosts-config
-
 - include: lxc_net.yml
   tags:
     - lxc_hosts-config
 
-- include: lxc_dnsmasq_cleanup.yml
+- include: lxc_kernel_tuning.yml
   tags:
     - lxc_hosts-config
 

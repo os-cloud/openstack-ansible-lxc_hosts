@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+# Copyright 2017, Rackspace US, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Check to see if the lxc zone is available
+if ! firewall-cmd --permanent --list-all-zones | grep lxc; then
+  firewall-cmd --permanent --new-zone=lxc
+fi
+
+# Create a NAT (masquerade) rule for our containers
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 nat POSTROUTING 0 \
+             -s "{{ lxc_net_address }}/{{ lxc_net_netmask }}" ! \
+             -d "{{ lxc_net_address }}/{{ lxc_net_netmask }}" \
+             -j MASQUERADE
+
+# Make sure we're filling the checksum on DHCP requests
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 mangle POSTROUTING 1 \
+             -s "{{ lxc_net_address }}/{{ lxc_net_netmask }}" \
+             -o "{{ lxc_net_bridge }}" \
+             -p udp \
+             -m udp \
+             --dport 68 \
+             -j CHECKSUM \
+             --checksum-fill
+
+# Add a filter rule for DHCP covering both TCP and UDP
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter INPUT 0 \
+             -i "{{ lxc_net_bridge }}" \
+             -p udp \
+             -m udp \
+             --dport 67 \
+             -j ACCEPT
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter INPUT 0 \
+             -i "{{ lxc_net_bridge }}" \
+             -p tcp \
+             -m tcp \
+             --dport 67 \
+             -j ACCEPT
+
+# Add a filter rule for DNS covering both TCP and UDP
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter INPUT 0 \
+             -i "{{ lxc_net_bridge }}" \
+             -p udp \
+             -m udp \
+             --dport 53 \
+             -j ACCEPT
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter INPUT 0 \
+             -i "{{ lxc_net_bridge }}" \
+             -p tcp \
+             -m tcp \
+             --dport 53 \
+             -j ACCEPT
+
+# Add a filter rule for LXC so that traffic has an egress and ingress path
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter FORWARD 0 \
+             -i "{{ lxc_net_bridge }}" \
+             -j ACCEPT
+firewall-cmd --direct \
+             --zone=lxc \
+             --permanent \
+             --add-rule ipv4 filter FORWARD 0 \
+             -o "{{ lxc_net_bridge }}" \
+             -j ACCEPT
+
+# NOTE(cloudnull): After installing firewalld the default zone is too restricted
+#                  this changes the zone which resembles the world the system would
+#                  have been in prior to running firewalld
+# TODO(cloudnull/mhayden): Investigate implementing software firewall rules on a per-service
+#                          basis for a stronger security footprint by default.
+firewall-cmd --set-default={{ lxc_firewalld_default_zone }}
+
+# Save the rules and reload the config
+firewall-cmd --reload

@@ -1,0 +1,31 @@
+[Match]
+Name={{ lxc_net_bridge }}
+
+[Network]
+{% set addr_cidr = (lxc_net_address | string + '/' + lxc_net_netmask | string) | ipaddr('prefix') %}
+Address={{ lxc_net_address }}/{{ addr_cidr }}
+
+{% if lxc_net6_address is not none %}
+{% set addr6_cidr = (lxc_net6_address | string + '/' + lxc_net6_netmask | string) | ipaddr('prefix') %}
+Address={{ lxc_net6_address }}/{{ addr6_cidr }}
+{% endif %}
+
+{% if lxc_net_gateway is not none %}
+Gateway={{ lxc_net_gateway }}
+{% endif %}
+
+IPForward=ipv4
+IPMasquerade=yes
+DHCPServer=yes
+
+[DHCPServer]
+PoolOffset=25
+PoolSize={{ lxc_net_dhcp_max }}
+DefaultLeaseTimeSec=3h
+EmitTimezone=yes
+EmitNTP=yes
+EmitDNS=yes
+EmitRouter=yes
+
+[Link]
+MTUBytes={{ lxc_net_mtu }}

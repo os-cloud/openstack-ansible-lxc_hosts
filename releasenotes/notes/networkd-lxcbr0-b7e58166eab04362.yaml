@@ -1,0 +1,20 @@
+---
+features:
+  - The lxcbr0 interface is now managed by systemd-networkd.
+    this has been done to allow us to unify our container
+    network capabilities across distributions without carrying
+    distro specific configs. This also removes the need to run
+    dnsmasq, manage the process and its specific user, and
+    simplifies the how the lxc network is started and attached
+    to across reboots.
+  - Several variables were removed from the lxc_host role.
+    ``lxc_net_bridge_port``, ``lxc_net_nat``,
+    ``lxc_net_dhcp_config``, ``lxc_net_dnsmasq_user``,
+    ``lxc_net_domain``, ``lxc_net6_nat``. ``lxc_net_manage_iptables``
+    These options were removed because they no longer have any
+    effect with the move to systemd-{networkd,firewalld}. Specific
+    network configuration overrides are now handled through the
+    use of ``config_template`` using the following options --
+    ``lxc_network_default_link``, ``lxc_network_dummy_netdev``,
+    ``lxc_network_dummy_network``, ``lxc_network_lxcbr_netdev``,
+    ``lxc_network_lxcbr_network``.
