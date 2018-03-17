@@ -18,6 +18,8 @@ lxc_hosts_external_repo:
   - name: "OBS:Virtualization:containers"
     uri: "{{ lxc_hosts_opensuse_mirror_obs_url }}/repositories/Virtualization:/containers/openSUSE_Leap_{{ ansible_distribution_version }}/"
 
+_lxc_hosts_container_image_url: "https://download.opensuse.org/repositories/Cloud:/Images:/Leap_42.3/images/openSUSE-Leap-42.3-OpenStack-rootfs.{{ ansible_architecture }}.tbz"
+
 system_config_dir: "/etc/sysconfig"
 systemd_utils_prefix: "/usr/lib/systemd"
 
@@ -41,7 +43,7 @@ lxc_xz_bin: xz
 
 lxc_cache_map:
   distro: opensuse
-  arch: amd64
+  arch: "{{ lxc_architecture_mapping.get( ansible_architecture ) }}"
   release: "{{ ansible_distribution_version }}"
   copy_from_host:
     - /etc/environment
@@ -95,6 +97,7 @@ _lxc_cache_distro_packages:
   - cronie
   - dbus-1
   - gcc
+  - iproute2
   - libffi-devel
   - libopenssl-devel
   - openssh

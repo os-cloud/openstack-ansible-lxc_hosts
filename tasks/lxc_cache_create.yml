@@ -13,16 +13,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+- name: Set backingstore fact
+  set_fact:
+    container_backing_store: "{{ lxc_container_backing_store | default('None') }}"
+
 - name: Create LXC cache dir
   file:
     path: "{{ cache_path_fact }}"
     state: "directory"
     recurse: true
 
+- name: Drop container meta-data
+  template:
+    src: "meta-data/{{ item }}"
+    dest: "{{ cache_path_fact }}/{{ item }}"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  with_items:
+    - config
+    - config.5
+    - config-user
+    - config-user.5
+    - create-message
+    - excludes-user
+    - expiry
+    - templates
+
 - name: Remove existing cache archive
   file:
     path: "{{ cache_path_fact }}/rootfs.tar.xz"
     state: "absent"
+  when:
+    - container_backing_store != 'machinectl'
 
 # This is using a shell command because the ansible archive module does not
 # provide for the options needed to properly create an LXC image archive.
@@ -34,37 +57,17 @@
   args:
     chdir: "{{ cache_path_fact }}/"
     warn: no
+  when:
+    - container_backing_store != 'machinectl'
   tags:
     - skip_ansible_lint
-
-- name: Fetch LXC image-metadata
-  shell: >
-    aria2c
-    --max-connection-per-server=4
-    --continue
-    --allow-overwrite=true
-    --dir=/tmp
-    --out=meta.tar.xz
-    --check-certificate={{ (lxc_hosts_validate_certs | bool) | lower }}
-    {% for server in lxc_image_cache_server_mirrors %}{{ server }}/{{ lxc_images[0].split(';')[-1] }}/meta.tar.xz {% endfor %}
-  args:
-    warn: no
-  tags:
-    - skip_ansible_lint
-    - always
-
-- name: Place container metadata
-  unarchive:
-    src: "/tmp/meta.tar.xz"
-    dest: "{{ cache_path_fact }}"
-    remote_src: True
-  notify:
-    - Remove metadata archive
 
 - name: Set cache expiry
   shell: "date -d @{{ (cache_time | int) + 31536000 }}"
   changed_when: false
   register: _cache_expiry
+  when:
+    - container_backing_store != 'machinectl'
   tags:
     - skip_ansible_lint
 
@@ -72,14 +75,18 @@
   copy:
     content: "{{ _cache_expiry.stdout }}"
     dest: "{{ cache_path_fact }}/expiry"
+  when:
+    - container_backing_store != 'machinectl'
 
 - name: Set build ID
   copy:
     content: "{{ cache_time }}"
     dest: "{{ cache_path_fact }}/build_id"
+  when:
+    - container_backing_store != 'machinectl'
 
 - include_tasks: "{{ item }}"
   with_first_found:
     - files:
-        - "lxc_container_{{ lxc_container_backing_store | default('None') }}.yml"
+        - "lxc_container_{{ container_backing_store }}.yml"
       skip: true

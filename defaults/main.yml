@@ -136,18 +136,7 @@ lxc_cache_distro_packages: "{{ _lxc_cache_distro_packages }}"
 # The value is specified in seconds, with the default being 20 minutes.
 lxc_cache_prep_timeout: 1200
 
-# Set the servers to download LXC images from
-# NOTE(mhayden): The main images.linuxcontainers.org site will redirect
-# requests to (us|uk).images.linuxcontainers.org upon the first request. We
-# add the mirrors here to get around some HTTP 400 errors and allow aria2 to
-# download from both mirrors at the same time.
-lxc_image_cache_server_mirrors:
-  - https://us.images.linuxcontainers.org
-  - https://uk.images.linuxcontainers.org
-
-# The DNS name of the LXD server to source the base container cache from
-# NOTE(cloudnull): This var should be removed in R.
-lxc_image_cache_server: "{{ lxc_image_cache_server_mirrors[0].strip('http(?s)://') }}"
+lxc_hosts_container_image_url: "{{ _lxc_hosts_container_image_url }}"
 
 # Local path to cached image
 lxc_image_cache_path: "/var/lib/machines/{{ lxc_container_base_name }}"
@@ -180,7 +169,7 @@ lxc_cache_download_template_options: >-
   --release {{ lxc_cache_map.release }}
   --arch {{ lxc_cache_map.arch }}
   --force-cache
-  --server {{ lxc_image_cache_server }}
+  --server localhost
   --variant {{ lxc_cache_default_variant }}
   {{ lxc_cache_download_template_extra_options }}
 
